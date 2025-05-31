@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Plus, Minus, Crosshair, Layers, Sliders } from "lucide-react";
+import { Plus, Minus, Crosshair, Layers, Sliders, Moon, Sun, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/hooks/use-theme";
+import { useFavorites } from "@/hooks/use-favorites";
 
 interface MapControlsProps {
   onZoomIn: () => void;
