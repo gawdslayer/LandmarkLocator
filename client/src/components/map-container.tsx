@@ -99,7 +99,7 @@ function MapEvents({
           east: bounds.getEast(),
           west: bounds.getWest()
         });
-      }, 500);
+      }, 1000); // Increased debounce to 1 second for better performance
     }
   });
 

@@ -59,42 +59,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const geonamesData = await geonamesResponse.json();
         const landmarks = [];
 
-        // Process GeoNames results and save to storage
-        for (const entry of geonamesData.geonames || []) {
-          if (entry.lat && entry.lng && entry.title) {
-            // Fetch Wikipedia page summary for more details
+        // Process GeoNames results and save to storage (optimized for speed)
+        const landmarkPromises = (geonamesData.geonames || [])
+          .filter((entry: any) => entry.lat && entry.lng && entry.title)
+          .slice(0, 20) // Limit to 20 landmarks for faster loading
+          .map(async (entry: any) => {
+            // Use basic description from GeoNames first for immediate display
             let description = entry.summary || '';
             let imageUrl = '';
 
-            try {
-              const summaryResponse = await fetch(
-                `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(entry.title)}`
-              );
-              
-              if (summaryResponse.ok) {
-                const summary = await summaryResponse.json();
-                description = summary.extract || description;
-                if (summary.thumbnail && summary.thumbnail.source) {
-                  imageUrl = summary.thumbnail.source;
-                }
-              }
-            } catch (error) {
-              console.error(`Error fetching Wikipedia summary for ${entry.title}:`, error);
-            }
-
-            // Determine landmark type based on title and description
+            // Determine landmark type based on title only (faster)
             let type = 'Historical Sites';
             const titleLower = entry.title.toLowerCase();
-            const descLower = description.toLowerCase();
             
-            if (titleLower.includes('museum') || descLower.includes('museum')) {
+            if (titleLower.includes('museum')) {
               type = 'Museums';
-            } else if (titleLower.includes('park') || titleLower.includes('garden') || descLower.includes('park')) {
+            } else if (titleLower.includes('park') || titleLower.includes('garden')) {
               type = 'Parks & Nature';
             } else if (titleLower.includes('bridge') || titleLower.includes('building') || titleLower.includes('tower')) {
               type = 'Architecture';
             }
 
+            // Create landmark with basic data first
             const landmark = await storage.createLandmark({
               title: entry.title,
               description,
@@ -107,9 +93,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
               categories: [type]
             });
 
-            landmarks.push(landmark);
-          }
-        }
+            // Fetch enhanced details in background (don't await)
+            fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(entry.title)}`)
+              .then(async (summaryResponse) => {
+                if (summaryResponse.ok) {
+                  const summary = await summaryResponse.json();
+                  const enhancedDescription = summary.extract || description;
+                  const enhancedImageUrl = summary.thumbnail?.source || '';
+                  
+                  // Update landmark with enhanced data
+                  await storage.updateLandmark(landmark.id, {
+                    description: enhancedDescription,
+                    imageUrl: enhancedImageUrl
+                  });
+                }
+              })
+              .catch(error => console.error(`Background update failed for ${entry.title}:`, error));
+
+            return landmark;
+          });
+
+        // Wait for all landmarks to be created (but not for background updates)
+        const createdLandmarks = await Promise.all(landmarkPromises);
+        landmarks.push(...createdLandmarks);
 
         // Log search for analytics
         await storage.createSearch({
