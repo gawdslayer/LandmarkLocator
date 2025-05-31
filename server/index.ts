@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import 'dotenv/config';
 
 const app = express();
 app.use(express.json());
@@ -56,15 +57,34 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  // Try different ports if 5000 is not available
+  const ports = [5000, 3000, 8080, 4000];
+  let currentPortIndex = 0;
+
+  const tryListen = () => {
+    const port = ports[currentPortIndex];
+    server.listen({
+      port,
+      host: "0.0.0.0", // Changed from localhost to 0.0.0.0 to allow external connections
+    }, () => {
+      log(`Server running at http://localhost:${port}`);
+      log(`Access from other devices: http://192.168.0.169:${port}`);
+    }).on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE' || err.code === 'ENOTSUP') {
+        currentPortIndex++;
+        if (currentPortIndex < ports.length) {
+          log(`Port ${port} not available, trying ${ports[currentPortIndex]}...`);
+          tryListen();
+        } else {
+          log('No available ports found. Please check your system configuration.');
+          process.exit(1);
+        }
+      } else {
+        log(`Server error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+  };
+
+  tryListen();
 })();
