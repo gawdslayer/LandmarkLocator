@@ -279,7 +279,9 @@ export function MapComponent({ initialCenter, initialZoom }: MapComponentProps) 
         onZoomOut={handleZoomOut}
         onCenterLocation={handleCenterLocation}
         onToggleFilters={handleToggleFilters}
+        onToggleFavorites={handleToggleFavorites}
         filtersOpen={filterState.isOpen}
+        favoritesOpen={favoritesOpen}
       />
 
       {/* Filter Panel */}
@@ -289,6 +291,13 @@ export function MapComponent({ initialCenter, initialZoom }: MapComponentProps) 
         onTypeToggle={handleTypeToggle}
         onClearAll={handleClearFilters}
         typeCounts={typeCounts}
+      />
+
+      {/* Favorites Panel */}
+      <FavoritesPanel
+        isOpen={favoritesOpen}
+        onLandmarkClick={handleLandmarkClick}
+        onClose={() => setFavoritesOpen(false)}
       />
 
       {/* Landmark Sidebar */}
