@@ -252,6 +252,8 @@ export function MapComponent({ initialCenter, initialZoom }: MapComponentProps) 
         zoom={initialZoom}
         className="absolute inset-0 z-0"
         ref={mapRef}
+        zoomControl={false}
+        attributionControl={false}
       >
         <TileLayer
           attribution='© OpenStreetMap contributors'
