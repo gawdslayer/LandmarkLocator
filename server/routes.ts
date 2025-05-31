@@ -47,23 +47,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ) / 2;
 
       try {
-        // Use GeoNames API for nearby places with Wikipedia entries
-        const geonamesResponse = await fetch(
-          `http://api.geonames.org/findNearbyWikipediaJSON?lat=${centerLat}&lng=${centerLng}&radius=${Math.min(radius/1000, 20)}&maxRows=50&username=${process.env.GEONAMES_USERNAME}`
+        // Use Wikipedia geosearch API to find articles with coordinates near the location
+        const wikipediaResponse = await fetch(
+          `https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${centerLat}%7C${centerLng}&gsradius=${Math.min(radius, 10000)}&gslimit=50&format=json&origin=*`
         );
 
-        if (!geonamesResponse.ok) {
-          throw new Error(`GeoNames API error: ${geonamesResponse.status}`);
+        if (!wikipediaResponse.ok) {
+          throw new Error(`Wikipedia API error: ${wikipediaResponse.status}`);
         }
 
-        const geonamesData = await geonamesResponse.json();
+        const wikipediaData = await wikipediaResponse.json();
         const landmarks = [];
 
-        // Process GeoNames results and save to storage
-        for (const entry of geonamesData.geonames || []) {
-          if (entry.lat && entry.lng && entry.title) {
+        // Process Wikipedia geosearch results and save to storage
+        for (const entry of wikipediaData.query?.geosearch || []) {
+          if (entry.lat && entry.lon && entry.title) {
             // Fetch Wikipedia page summary for more details
-            let description = entry.summary || '';
+            let description = '';
             let imageUrl = '';
 
             try {
@@ -73,7 +73,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               if (summaryResponse.ok) {
                 const summary = await summaryResponse.json();
-                description = summary.extract || description;
+                description = summary.extract || '';
                 if (summary.thumbnail && summary.thumbnail.source) {
                   imageUrl = summary.thumbnail.source;
                 }
@@ -98,11 +98,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const landmark = await storage.createLandmark({
               title: entry.title,
               description,
-              lat: parseFloat(entry.lat),
-              lng: parseFloat(entry.lng),
+              lat: entry.lat,
+              lng: entry.lon,
               type,
-              wikipediaUrl: entry.wikipediaUrl || `https://en.wikipedia.org/wiki/${encodeURIComponent(entry.title)}`,
-              wikipediaPageId: entry.wikipediaId,
+              wikipediaUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(entry.title)}`,
+              wikipediaPageId: entry.pageid,
               imageUrl,
               categories: [type]
             });
