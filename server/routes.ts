@@ -47,46 +47,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ) / 2;
 
       try {
-        const wikipediaResponse = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/nearby?lat=${centerLat}&lng=${centerLng}&radius=${Math.min(radius, 10000)}&limit=50`
+        // Use GeoNames API for nearby places with Wikipedia entries
+        const geonamesResponse = await fetch(
+          `http://api.geonames.org/findNearbyWikipediaJSON?lat=${centerLat}&lng=${centerLng}&radius=${Math.min(radius/1000, 20)}&maxRows=50&username=${process.env.GEONAMES_USERNAME}`
         );
 
-        if (!wikipediaResponse.ok) {
-          throw new Error(`Wikipedia API error: ${wikipediaResponse.status}`);
+        if (!geonamesResponse.ok) {
+          throw new Error(`GeoNames API error: ${geonamesResponse.status}`);
         }
 
-        const wikipediaData = await wikipediaResponse.json();
+        const geonamesData = await geonamesResponse.json();
         const landmarks = [];
 
-        // Process Wikipedia results and save to storage
-        for (const page of wikipediaData.pages || []) {
-          if (page.coordinates && page.coordinates.length > 0) {
-            const coord = page.coordinates[0];
-            
-            // Fetch additional page info
-            let description = page.description || '';
+        // Process GeoNames results and save to storage
+        for (const entry of geonamesData.geonames || []) {
+          if (entry.lat && entry.lng && entry.title) {
+            // Fetch Wikipedia page summary for more details
+            let description = entry.summary || '';
             let imageUrl = '';
-            let categories: string[] = [];
 
             try {
-              const pageInfoResponse = await fetch(
-                `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.title)}`
+              const summaryResponse = await fetch(
+                `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(entry.title)}`
               );
               
-              if (pageInfoResponse.ok) {
-                const pageInfo = await pageInfoResponse.json();
-                description = pageInfo.extract || description;
-                if (pageInfo.thumbnail && pageInfo.thumbnail.source) {
-                  imageUrl = pageInfo.thumbnail.source;
+              if (summaryResponse.ok) {
+                const summary = await summaryResponse.json();
+                description = summary.extract || description;
+                if (summary.thumbnail && summary.thumbnail.source) {
+                  imageUrl = summary.thumbnail.source;
                 }
               }
             } catch (error) {
-              console.error(`Error fetching page info for ${page.title}:`, error);
+              console.error(`Error fetching Wikipedia summary for ${entry.title}:`, error);
             }
 
             // Determine landmark type based on title and description
             let type = 'Historical Sites';
-            const titleLower = page.title.toLowerCase();
+            const titleLower = entry.title.toLowerCase();
             const descLower = description.toLowerCase();
             
             if (titleLower.includes('museum') || descLower.includes('museum')) {
@@ -98,13 +96,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             const landmark = await storage.createLandmark({
-              title: page.title,
+              title: entry.title,
               description,
-              lat: coord.lat,
-              lng: coord.lon,
+              lat: parseFloat(entry.lat),
+              lng: parseFloat(entry.lng),
               type,
-              wikipediaUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`,
-              wikipediaPageId: page.pageid,
+              wikipediaUrl: entry.wikipediaUrl || `https://en.wikipedia.org/wiki/${encodeURIComponent(entry.title)}`,
+              wikipediaPageId: entry.wikipediaId,
               imageUrl,
               categories: [type]
             });
