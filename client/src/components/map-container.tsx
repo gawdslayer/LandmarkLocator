@@ -7,6 +7,7 @@ import { SearchHeader } from "./search-header";
 import { FilterPanel } from "./filter-panel";
 import { MapControls } from "./map-controls";
 import { LandmarkSidebar } from "./landmark-sidebar";
+import { FavoritesPanel } from "./favorites-panel";
 import type { Landmark, MapBounds, FilterState } from "@/types/landmark";
 import { LANDMARK_TYPES } from "@/types/landmark";
 import "leaflet/dist/leaflet.css";
@@ -118,6 +119,7 @@ export function MapComponent({ initialCenter, initialZoom }: MapComponentProps) 
     isOpen: false,
     selectedTypes: []
   });
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const mapRef = useRef<LeafletMap>(null);
   const { toast } = useToast();
 
@@ -201,6 +203,12 @@ export function MapComponent({ initialCenter, initialZoom }: MapComponentProps) 
 
   const handleToggleFilters = useCallback(() => {
     setFilterState(prev => ({ ...prev, isOpen: !prev.isOpen }));
+    setFavoritesOpen(false); // Close favorites when opening filters
+  }, []);
+
+  const handleToggleFavorites = useCallback(() => {
+    setFavoritesOpen(prev => !prev);
+    setFilterState(prev => ({ ...prev, isOpen: false })); // Close filters when opening favorites
   }, []);
 
   const handleTypeToggle = useCallback((type: string) => {
